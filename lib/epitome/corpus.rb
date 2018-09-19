@@ -1,9 +1,12 @@
 require 'matrix'
 require 'stopwords'
+require 'fast-stemmer'
 
 module Epitome
   class Corpus
     attr_reader :original_corpus
+    attr_reader :word_tf
+
     def initialize(document_collection, lang="en")
       # lang is the language used to initialize the stopword list
       @lang = lang
@@ -20,18 +23,22 @@ module Epitome
       # to avoid unnecessary computations
       @word_tf_doc = {}
 
+      @word_tf = {}
+      @processed_tf = {}
+
       # Just the sentences
       @sentences = @original_corpus.values.flatten
+      @clean_sentences = @clean_corpus.values.flatten
 
       # The number of documents in the corpus
       @n_docs = @original_corpus.keys.size
       
     end
 
-    def summary(summary_length, threshold=0.2)
-      s = @clean_corpus.values.flatten
+    def summary(summary_length = 3, threshold=0.2)
+      s = @clean_sentences
       # n is the number of sentences in the total corpus
-      n = @clean_corpus.values.flatten.size
+      n = s.size
 
       # Vector of Similarity Degree for each sentence in the corpus
       degree = Array.new(n) {0.00} 
@@ -68,8 +75,8 @@ module Epitome
       # Create stopword filter
       filter = Stopwords::Snowball::Filter.new @lang 
       sentence_array.map do |s| 
-        s = s.downcase
-        filter.filter(s.split).join(" ")
+        s = s.downcase.gsub(/[.,;:`"”“'’]/,'')
+        filter.filter(s.split).map(&:stem).join(" ")
       end
     end
 
@@ -80,13 +87,10 @@ module Epitome
         count = 0
         docs = []
 
-        # Concanate the each document sentences to make it easier to search
-        @clean_corpus.values.each { |sentences| docs << sentences.join(" ") }
-
+        @clean_corpus.values.each { |s| docs << s.join(" ") }
         # Here, we user an interpolated string instead of a regex to avoid
         # weird corner cases
         docs.each { |s| count += 1 if s.include? "#{word}" }
-
         @word_tf_doc[w] = count
         count
       end
@@ -102,8 +106,13 @@ module Epitome
     end
 
     def tf(sentence, word)
+      hash = sentence.hash ^ word.hash
+      return @processed_tf[hash] if @processed_tf.key?(hash)
       # Number of occurences of word in sentence
-      sentence.scan(word).count
+      result = sentence.scan(word).count
+      @processed_tf[hash] = result
+      @word_tf[word] = (@word_tf[word] || 0) + result
+      result
     end
 
     def sentence_tfidf_sum(sentence)

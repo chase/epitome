@@ -24,4 +24,5 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "minitest"
   spec.add_dependency "scalpel"
   spec.add_dependency "stopwords-filter"
+  spec.add_dependency "fast-stemmer"
 end
