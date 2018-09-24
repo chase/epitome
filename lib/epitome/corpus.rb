@@ -10,20 +10,20 @@ module Epitome
     def initialize(document_collection, lang="en")
       # lang is the language used to initialize the stopword list
       @lang = lang
+      @word_tf = {}
 
       # Massage the document_collection into a more workable form
       @original_corpus = {}
       document_collection.each { |document| @original_corpus[document.id] = document.text }
       @clean_corpus = {}
       @original_corpus.each do |key, value|
-        @clean_corpus[key] = clean value
+        @clean_corpus[key] = clean(value, @word_tf)
       end
 
       # Dictionary of term-frequency for each word
       # to avoid unnecessary computations
       @word_tf_doc = {}
 
-      @word_tf = {}
       @processed_tf = {}
 
       # Just the sentences
@@ -32,7 +32,6 @@ module Epitome
 
       # The number of documents in the corpus
       @n_docs = @original_corpus.keys.size
-      
     end
 
     def summary(summary_length = 3, threshold=0.2)
@@ -69,14 +68,18 @@ module Epitome
     end
 
     private
-    def clean(sentence_array)
+    def clean(sentence_array, word_tf)
       # Clean the sentences a bit to avoid unnecessary operations
       #
       # Create stopword filter
-      filter = Stopwords::Snowball::Filter.new @lang 
-      sentence_array.map do |s| 
+      filter = Stopwords::Snowball::Filter.new(@lang)
+      sentence_array.map do |s|
         s = s.downcase.gsub(/[.,;:`"”“'’]/,'')
-        filter.filter(s.split).map(&:stem).join(" ")
+        processed = filter.filter(s.split)
+        processed.each do |word|
+          word_tf[word] = (word_tf[word] || 0) + s.scan(word).count
+        end
+        processed.map(&:stem).join(" ")
       end
     end
 
@@ -111,7 +114,6 @@ module Epitome
       # Number of occurences of word in sentence
       result = sentence.scan(word).count
       @processed_tf[hash] = result
-      @word_tf[word] = (@word_tf[word] || 0) + result
       result
     end
 
